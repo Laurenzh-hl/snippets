@@ -60,14 +60,49 @@ const snippets: Snippet[] = [
 app.get("/snippets", (req: Request, res: Response): void => {
   // Bonus: Filter the snippets by language if someone adds a query parameter,
   // e.g. /snippets?lang=python.
-  res.send(snippets);
+  try {
+    const lang = req.query.lang as string;
+    const filtered = snippets.filter(function (item) {
+      if (lang) {
+        return item.language.toLowerCase() === lang;
+      } else {
+        return item;
+      }
+    });
+    res.status(200).json(filtered);
+  } catch (error) {
+    res.status(500).json({ error: "Failed to fetch snippets" });
+  }
+});
+
+// GET /snippets/:id
+app.get("/snippets/:id", (req: Request, res: Response): void => {
+  try {
+    const filtered = snippets.filter(function (item, idx) {
+      return idx + 1 === Number(req.params.id);
+    });
+    if (filtered.length > 0) {
+      res.status(200).json(filtered);
+    } else {
+      res.status(404).json({ error: "Snippet not found" });
+    }
+  } catch (error) {
+    res.status(500).json({ error: "Failed to fetch snippet" });
+  }
 });
 
 // POST /snippets
 app.post("/snippets", (req: Request, res: Response): void => {
-  // Create a new snippet with the request body.
-  // Add the new snippet to the end of the `snippets` array.
-  // Send a 201 Created response with the new snippet as the body.
+  try {
+    // Create a new snippet with the request body.
+    const { id, language, code } = req.body;
+    // Add the new snippet to the end of the `snippets` array.
+    snippets.push({ id, language, code });
+    // Send a 201 Created response with the new snippet as the body.
+    res.status(201).json(snippets[snippets.length - 1]);
+  } catch (error) {
+    res.status(500).json({ error: "Failed to add new snippet" });
+  }
 });
 
 const port: number = 3000;
