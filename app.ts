@@ -64,7 +64,7 @@ app.get("/snippets", (req: Request, res: Response): void => {
     const lang = req.query.lang as string;
     const filtered = snippets.filter(function (item) {
       if (lang) {
-        return item.language.toLowerCase() === lang;
+        return item.language.toLowerCase() === lang.toLowerCase();
       } else {
         return item;
       }
@@ -76,13 +76,29 @@ app.get("/snippets", (req: Request, res: Response): void => {
 });
 
 // GET /snippets/:id
+// app.get("/snippets/:id", (req: Request, res: Response): void => {
+//   try {
+//     const filtered = snippets.filter(function (item, idx) {
+//       return idx + 1 === Number(req.params.id);
+//     });
+//     if (filtered.length > 0) {
+//       res.status(200).json(filtered);
+//     } else {
+//       res.status(404).json({ error: "Snippet not found" });
+//     }
+//   } catch (error) {
+//     res.status(500).json({ error: "Failed to fetch snippet" });
+//   }
+// });
+
+// GET /snippets/:id with improvements
 app.get("/snippets/:id", (req: Request, res: Response): void => {
   try {
-    const filtered = snippets.filter(function (item, idx) {
-      return idx + 1 === Number(req.params.id);
+    const snippet = snippets.find(function (item) {
+      return item.id === Number(req.params.id);
     });
-    if (filtered.length > 0) {
-      res.status(200).json(filtered);
+    if (snippet) {
+      res.status(200).json(snippet);
     } else {
       res.status(404).json({ error: "Snippet not found" });
     }
@@ -92,16 +108,58 @@ app.get("/snippets/:id", (req: Request, res: Response): void => {
 });
 
 // POST /snippets
+// app.post("/snippets", (req: Request, res: Response): void => {
+//   try {
+//     // Create a new snippet with the request body.
+//     const { id, language, code } = req.body;
+//     // Add the new snippet to the end of the `snippets` array.
+//     snippets.push({ id, language, code });
+//     // Send a 201 Created response with the new snippet as the body.
+//     res.status(201).json(snippets.at(-1));
+//   } catch (error) {
+//     res.status(500).json({ error: "Failed to add new snippet" });
+//   }
+// });
+
+function findLargestId(array: Snippet[]) {
+  let number = 0;
+  for (let i = 0; i < array.length; i++) {
+    if (array[i].id > number) {
+      number = array[i].id;
+    }
+  }
+  return number;
+}
+
+// POST /snippets with improvements
 app.post("/snippets", (req: Request, res: Response): void => {
   try {
     // Create a new snippet with the request body.
-    const { id, language, code } = req.body;
+    const { language, code } = req.body;
+    const nextId = findLargestId(snippets) + 1;
     // Add the new snippet to the end of the `snippets` array.
-    snippets.push({ id, language, code });
+    snippets.push({ id: nextId, language, code });
     // Send a 201 Created response with the new snippet as the body.
-    res.status(201).json(snippets[snippets.length - 1]);
+    res.status(201).json(snippets.at(-1));
   } catch (error) {
     res.status(500).json({ error: "Failed to add new snippet" });
+  }
+});
+
+// DELETE /snippets/:id
+app.delete("/snippets/:id", (req: Request, res: Response): void => {
+  // Find the index of the snippet we want to delete.
+  const index = snippets.findIndex(function (snippet) {
+    return snippet.id === Number(req.params.id);
+  });
+
+  // If the snippet can't be found, send a 404 Not Found response.
+  // Otherwise, delete it and send a 204 No Content response.
+  if (index === -1) {
+    res.status(404).json({ error: "Snippet not found" });
+  } else {
+    snippets.splice(index, 1);
+    res.status(204).send();
   }
 });
 
