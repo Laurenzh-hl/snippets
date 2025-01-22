@@ -1,8 +1,7 @@
 import * as dotenv from "dotenv";
 dotenv.config();
-
 import * as bcrypt from "bcryptjs";
-
+import * as jwt from "jsonwebtoken";
 // Import Express and some of its types.
 import express, { Express, Request, Response } from "express";
 // Import crypto module
@@ -11,8 +10,8 @@ import { enc } from "crypto-js";
 
 // declare encryption and decryption functions
 
-const key = process.env.SNIPPET_ENCRYPT_KEY as string;
-// console.log(key);
+const SNIPPET_ENCRYPT_KEY = process.env.SNIPPET_ENCRYPT_KEY as string;
+const JWT_SECRET = process.env.JWT_SECRET as string;
 
 function encryptSymmetric(key: string, plaintext: string) {
   const iv = crypto.randomBytes(12).toString("base64");
@@ -47,9 +46,6 @@ function decryptSymmetric(
   return plaintext;
 }
 
-const { ciphertext, iv, tag } = encryptSymmetric(key, "Lauren");
-console.log(decryptSymmetric(key, ciphertext, iv, tag));
-
 // Create the Express application.
 const app: Express = express();
 
@@ -74,7 +70,23 @@ interface User {
   password: string;
 }
 
-const users: User[] = [];
+const users: User[] = [
+  {
+    id: 1,
+    email: "email1",
+    password: "$2a$10$NGFxa/R3XSwGQ1rr4BRmwO7uFhkwuVK2k1cjlD3kMlrKkYRz/GYYS",
+  },
+  {
+    id: 2,
+    email: "email2",
+    password: "$2a$10$UaBt4eojdQXg2Zj20a6.ced1jN3ngCpOjEDKUHlACYR8oxP7THbOS",
+  },
+  {
+    id: 3,
+    email: "email3",
+    password: "$2a$10$v.Lr63B9H/8g16h4rFSgBeIlYzuWfrjKakSNzN0Ig1NzyeoE0rfcm",
+  },
+];
 
 const snippets: Snippet[] = [
   {
@@ -157,8 +169,16 @@ const snippets: Snippet[] = [
 
 // GET /snippets
 app.get("/snippets", (req: Request, res: Response): void => {
-  try {
-    const lang = req.query.lang as string;
+  const token = req.headers["authorization"]?.split(" ")[1];
+  const lang = req.query.lang as string;
+  if (!token) {
+    res.status(401).json({ message: "No token provided!" });
+  }
+
+  jwt.verify(token as string, JWT_SECRET, (err) => {
+    if (err) {
+      res.status(403).json({ message: "Invalid token!" });
+    }
     const filtered = snippets.filter(function (item) {
       if (lang) {
         return item.language.toLowerCase() === lang.toLowerCase();
@@ -166,12 +186,12 @@ app.get("/snippets", (req: Request, res: Response): void => {
         return item;
       }
     });
-    console.log(filtered);
+    // console.log(filtered);
     const decryptSnips = filtered.map(function (snippet) {
       return {
         ...snippet,
         code: decryptSymmetric(
-          key,
+          SNIPPET_ENCRYPT_KEY,
           snippet.code.ciphertext,
           snippet.code.iv,
           snippet.code.tag
@@ -179,9 +199,7 @@ app.get("/snippets", (req: Request, res: Response): void => {
       };
     });
     res.status(200).json(decryptSnips);
-  } catch (error) {
-    res.status(500).json({ error: "Failed to fetch snippets" });
-  }
+  });
 });
 
 // GET /snippets/:id
@@ -202,7 +220,16 @@ app.get("/snippets", (req: Request, res: Response): void => {
 
 // GET /snippets/:id with improvements
 app.get("/snippets/:id", (req: Request, res: Response): void => {
-  try {
+  const token = req.headers["authorization"]?.split(" ")[1];
+
+  if (!token) {
+    res.status(401).json({ message: "No token provided!" });
+  }
+
+  jwt.verify(token as string, JWT_SECRET, (err) => {
+    if (err) {
+      res.status(403).json({ message: "Invalid token!" });
+    }
     const snippet = snippets.find(function (item) {
       return item.id === Number(req.params.id);
     });
@@ -210,7 +237,7 @@ app.get("/snippets/:id", (req: Request, res: Response): void => {
       const decryptSnip = {
         ...snippet,
         code: decryptSymmetric(
-          key,
+          SNIPPET_ENCRYPT_KEY,
           snippet.code.ciphertext,
           snippet.code.iv,
           snippet.code.tag
@@ -220,9 +247,7 @@ app.get("/snippets/:id", (req: Request, res: Response): void => {
     } else {
       res.status(404).json({ error: "Snippet not found" });
     }
-  } catch (error) {
-    res.status(500).json({ error: "Failed to fetch snippet" });
-  }
+  });
 });
 
 // POST /snippets
@@ -251,30 +276,51 @@ function findLargestId(array: { id: number }[]) {
 
 // POST /snippets with improvements
 app.post("/snippets", (req: Request, res: Response): void => {
-  try {
+  const token = req.headers["authorization"]?.split(" ")[1];
+  if (!token) {
+    res.status(401).json({ message: "No token provided!" });
+  }
+  jwt.verify(token as string, JWT_SECRET, (err) => {
+    if (err) {
+      res.status(403).json({ message: "Invalid token!" });
+    }
     const { language, code } = req.body;
     const nextId = findLargestId(snippets) + 1;
     const newSnip = { id: nextId, language, code };
-    snippets.push({ id: nextId, language, code: encryptSymmetric(key, code) });
-    res.status(201).json(newSnip);
-  } catch (error) {
-    res.status(500).json({ error: "Failed to add new snippet" });
-  }
+    snippets.push({
+      id: nextId,
+      language,
+      code: encryptSymmetric(SNIPPET_ENCRYPT_KEY, code),
+    });
+    res.status(201).json({
+      SnippetPosted: newSnip,
+      message: "Thank you for your contribution",
+    });
+  });
 });
 
 // DELETE /snippets/:id
 app.delete("/snippets/:id", (req: Request, res: Response): void => {
   // Find the index of the snippet we want to delete.
-  const index = snippets.findIndex(function (snippet) {
-    return snippet.id === Number(req.params.id);
-  });
-
-  if (index === -1) {
-    res.status(404).json({ error: "Snippet not found" });
-  } else {
-    snippets.splice(index, 1);
-    res.status(204).send();
+  const token = req.headers["authorization"]?.split(" ")[1];
+  if (!token) {
+    res.status(401).json({ message: "No token provided!" });
   }
+
+  jwt.verify(token as string, JWT_SECRET, (err) => {
+    if (err) {
+      res.status(403).json({ message: "Invalid token!" });
+    }
+    const index = snippets.findIndex(function (snippet) {
+      return snippet.id === Number(req.params.id);
+    });
+    if (index === -1) {
+      res.status(404).json({ error: "Snippet not found" });
+    } else {
+      snippets.splice(index, 1);
+      res.status(204).send();
+    }
+  });
 });
 
 //POST /users
@@ -287,7 +333,7 @@ app.post("/users", (req: Request, res: Response): void => {
     password: bcrypt.hashSync(password, 10),
   };
   users.push(newUser);
-  console.log(users);
+  //console.log(users);
   res.status(201).json({ id: newUser.id, email: newUser.email });
 });
 
@@ -301,7 +347,16 @@ app.post("/login", (req: Request, res: Response): void => {
   if (!user) {
     res.status(404).json({ error: "user not found" });
   } else {
-    res.status(200).send(bcrypt.compareSync(password, user.password));
+    const comparison = bcrypt.compareSync(password, user.password);
+    if (comparison === true) {
+      const token = jwt.sign({ email }, JWT_SECRET, { expiresIn: "24h" });
+
+      res
+        .status(200)
+        .json({ message: "Successfully logged in!", token: token });
+    } else {
+      res.status(401).json({ message: "Incorrect password" });
+    }
   }
 });
 
