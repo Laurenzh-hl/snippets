@@ -202,22 +202,6 @@ app.get("/snippets", (req: Request, res: Response): void => {
   });
 });
 
-// GET /snippets/:id
-// app.get("/snippets/:id", (req: Request, res: Response): void => {
-//   try {
-//     const filtered = snippets.filter(function (item, idx) {
-//       return idx + 1 === Number(req.params.id);
-//     });
-//     if (filtered.length > 0) {
-//       res.status(200).json(filtered);
-//     } else {
-//       res.status(404).json({ error: "Snippet not found" });
-//     }
-//   } catch (error) {
-//     res.status(500).json({ error: "Failed to fetch snippet" });
-//   }
-// });
-
 // GET /snippets/:id with improvements
 app.get("/snippets/:id", (req: Request, res: Response): void => {
   const token = req.headers["authorization"]?.split(" ")[1];
@@ -249,20 +233,6 @@ app.get("/snippets/:id", (req: Request, res: Response): void => {
     }
   });
 });
-
-// POST /snippets
-// app.post("/snippets", (req: Request, res: Response): void => {
-//   try {
-//     // Create a new snippet with the request body.
-//     const { id, language, code } = req.body;
-//     // Add the new snippet to the end of the `snippets` array.
-//     snippets.push({ id, language, code });
-//     // Send a 201 Created response with the new snippet as the body.
-//     res.status(201).json(snippets.at(-1));
-//   } catch (error) {
-//     res.status(500).json({ error: "Failed to add new snippet" });
-//   }
-// });
 
 function findLargestId(array: { id: number }[]) {
   let number = 0;
